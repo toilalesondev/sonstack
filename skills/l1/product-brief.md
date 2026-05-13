@@ -16,34 +16,27 @@ Run this skill **after** `clarify-requirements` has been completed and all 7 int
 
 ## Prerequisites
 
-- `clarify-requirements` skill has been run and memory key `project/{project_slug}/intake` exists
-- Hermes memory is readable (`memory_read` tool available)
+- `clarify-requirements` skill has been run and intake answers are saved in Hermes memory
 - Write access to the project directory (local or VPS)
 - Project root directory exists (create it if not)
 
 ## Procedure
 
-1. **Read intake answers from memory:**
+1. **Read intake answers from memory** — the intake is already in the Hermes memory section of the system prompt. Scan it for an entry matching:
 
    ```
-   tool: memory_read
-   key: "project/{project_slug}/intake"
+   Project {project_slug} intake: Q1_problem=... Q2_users=... Q3_status_quo=... Q4_core_action=... Q5_stack=... Q6_monetization=... Q7_success_30d=...
    ```
 
-   If the key does not exist, **stop** and tell Sir to run `clarify-requirements` first:
-   ```
-   tool: send_telegram_message
-   text: "⚠️ No intake found for {project_slug}. Please run clarify-requirements first."
-   ```
+   If no intake entry is found in memory context, tell Sir in chat:
 
-2. **Also read any existing project context** (optional, merge if present):
+   > "⚠️ No intake found for {project_slug}. Please run `clarify-requirements` first."
 
-   ```
-   tool: memory_read
-   key: "project/{project_slug}/context"
-   ```
+   Then stop.
 
-3. **Derive the stack section** — if intake.stack is blank or "defaults", expand to:
+2. **Also check memory for any existing project context** (optional, merge if present) — look for a `Project {project_slug} context:` entry in the memory section of the system prompt.
+
+3. **Derive the stack section** — if `Q5_stack` is blank or "defaults" or "no preference", expand to:
    ```
    - Frontend: Next.js 14 (App Router), TypeScript, Tailwind CSS, shadcn/ui
    - Backend: Next.js API Routes / Server Actions
@@ -61,12 +54,25 @@ Run this skill **after** `clarify-requirements` has been completed and all 7 int
    
    List each as an open question.
 
-5. **Write PRODUCT_BRIEF.md** to project root:
+5. **Check if PRODUCT_BRIEF.md already exists** before writing:
 
    ```
-   tool: write_file
-   path: "{project_root}/PRODUCT_BRIEF.md"
-   content: <generated brief — see template below>
+   read_file(path="{project_root}/PRODUCT_BRIEF.md")
+   ```
+
+   If the file exists, ask Sir in chat:
+
+   > "⚠️ PRODUCT_BRIEF.md already exists at {path}. Overwrite? Reply YES to confirm."
+
+   Wait for YES before proceeding.
+
+6. **Write PRODUCT_BRIEF.md** to project root:
+
+   ```
+   write_file(
+     path="{project_root}/PRODUCT_BRIEF.md",
+     content=<generated brief — see template below>
+   )
    ```
 
    **Template:**
@@ -79,20 +85,20 @@ Run this skill **after** `clarify-requirements` has been completed and all 7 int
 
    ## Problem
 
-   {intake.problem — normalized to clear English/Vietnamese, 2-4 sentences}
+   {Q1_problem — normalized to clear English/Vietnamese, 2-4 sentences}
 
    ## Users
 
-   {intake.users — formatted as a persona card}
+   {Q2_users — formatted as a persona card}
 
    **Primary persona:** {name or role}
    - Background: {description}
-   - Current workaround: {how they solve it today}
+   - Current workaround: {Q3_status_quo — how they solve it today}
    - Tech comfort: {low / medium / high}
 
    ## Core Features
 
-   {Derive 3-6 MVP features from the problem + users answers. Be specific and action-oriented.}
+   {Derive 3-6 MVP features from Q1_problem + Q2_users + Q4_core_action. Be specific and action-oriented.}
 
    - [ ] Feature 1: {description}
    - [ ] Feature 2: {description}
@@ -111,15 +117,15 @@ Run this skill **after** `clarify-requirements` has been completed and all 7 int
 
    ## Success Metric
 
-   {intake.success_metric — one measurable sentence}
+   {Q7_success_30d — one measurable sentence}
 
-   **Baseline:** {current state}
-   **Target:** {goal from intake}
-   **Timeline:** {intake.timeline}
+   **Baseline:** {current state from Q3_status_quo}
+   **Target:** {goal from Q7_success_30d}
+   **Timeline:** 30 days
 
    ## Monetization
 
-   {intake.monetization — one paragraph}
+   {Q6_monetization — one paragraph}
 
    ## Open Questions
 
@@ -132,38 +138,28 @@ Run this skill **after** `clarify-requirements` has been completed and all 7 int
    *Next steps: run `choose-engine` to select the right coding engine, then scaffold the repo.*
    ```
 
-6. **Save brief path to memory:**
+7. **Save brief path and context to memory:**
 
    ```
-   tool: memory_write
-   key: "project/{project_slug}/brief_path"
-   value: "{project_root}/PRODUCT_BRIEF.md"
-   ```
-
-7. **Update project context in memory:**
-
-   ```
-   tool: memory_write
-   key: "project/{project_slug}/context"
-   value: {
-     name: "{project name}",
-     slug: "{project_slug}",
-     stack: "{stack summary}",
-     status: "brief_written",
-     brief_written_at: "<ISO timestamp>"
-   }
+   memory(
+     action="add",
+     target="memory",
+     content="Project {project_slug} context: name={project name}, slug={project_slug}, stack={stack summary}, status=brief_written, brief_path={project_root}/PRODUCT_BRIEF.md, brief_written_at={ISO timestamp}"
+   )
    ```
 
 8. **Send confirmation to Sir via Telegram:**
 
    ```
-   tool: send_telegram_message
-   text: "📄 PRODUCT_BRIEF.md written to {project_root}.\n\nHighlights:\n• Problem: {1-sentence summary}\n• Users: {persona name/role}\n• MVP features: {count} items\n• Success metric: {metric}\n\n{open_question_count} open question(s) need your input — see ## Open Questions section.\n\nNext: run `choose-engine` to pick the right coding engine."
+   send_message(
+     target="telegram",
+     message="📄 PRODUCT_BRIEF.md written to {project_root}.\n\nHighlights:\n• Problem: {1-sentence summary}\n• Users: {persona name/role}\n• MVP features: {count} items\n• Success metric: {metric}\n\n{open_question_count} open question(s) need your input — see ## Open Questions section.\n\nNext: run `choose-engine` to pick the right coding engine."
+   )
    ```
 
 ## Sir's Defaults
 
-- **Stack default:** Next.js 14 + Supabase (`bhssclapikzlpyzolzjy`) + Vercel (auto-filled when intake.stack is blank)
+- **Stack default:** Next.js 14 + Supabase (`bhssclapikzlpyzolzjy`) + Vercel (auto-filled when Q5_stack is blank)
 - **GitHub account:** `toilalesondev` — repo URL pattern: `github.com/toilalesondev/{project_slug}`
 - **VPS runtime:** karpathy user — project root default: `/home/karpathy/projects/{project_slug}`
 - **Notifications:** Telegram only (never Slack)
@@ -175,32 +171,20 @@ Run this skill **after** `clarify-requirements` has been completed and all 7 int
 
 - **Don't invent features** — only derive features that are clearly implied by the problem and user answers. When in doubt, list as Open Question.
 - **Don't skip Non-goals** — this is the most skipped section and causes scope creep.
-- **Don't overwrite an existing PRODUCT_BRIEF.md** without confirming with Sir first:
-  ```
-  tool: send_telegram_message
-  text: "⚠️ PRODUCT_BRIEF.md already exists at {path}. Overwrite? Reply YES to confirm."
-  ```
-  Wait for YES before proceeding.
-- **Don't assume project root** — read from memory or ask Sir for the absolute path.
+- **Don't overwrite an existing PRODUCT_BRIEF.md** without confirming with Sir first (see step 5).
+- **Don't assume project root** — read from memory context or ask Sir for the absolute path.
 - **If intake is partial** (some answers missing), still generate the brief but flag missing sections clearly with `[MISSING — needs clarification]`.
 
 ## Verification
 
-After step 5, verify the file exists and has all required sections:
+After step 6, verify the file exists and has all required sections:
 
 ```
-tool: read_file
-path: "{project_root}/PRODUCT_BRIEF.md"
+read_file(path="{project_root}/PRODUCT_BRIEF.md")
 ```
 
 Check that these headings are present: `## Problem`, `## Users`, `## Core Features`, `## Stack`, `## Non-goals`, `## Success Metric`, `## Open Questions`
 
-If any section is missing, regenerate the affected section and re-append.
+If any section is missing, regenerate the affected section and re-write the file.
 
-Memory check:
-```
-tool: memory_read
-key: "project/{project_slug}/context"
-```
-
-Expected: `status` field equals `"brief_written"`.
+Memory check: scan the Hermes memory section of the system prompt for a `Project {project_slug} context:` entry with `status=brief_written`.
