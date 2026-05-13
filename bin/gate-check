@@ -1,0 +1,59 @@
+#!/usr/bin/env bash
+# Sonstack gate-check — verify all 14 gate skills are installed
+set -e
+
+PROFILE="$HOME/.hermes/profiles/karpathy/skills"
+ERRORS=0
+
+check() {
+  local layer=$1 name=$2
+  local path="$PROFILE/sonstack/skills/$layer/$name.md"
+  if [ -f "$path" ]; then
+    echo "  ✅ $layer/$name"
+  else
+    echo "  ❌ $layer/$name MISSING"
+    ERRORS=$((ERRORS+1))
+  fi
+}
+
+echo "=== Sonstack Gate Check ==="
+echo ""
+echo "L1 skills (oh-my-hermes lineage):"
+check l1 clarify-requirements
+check l1 product-brief
+check l1 choose-engine
+check l1 await-merge-approval
+check l1 deploy-to-vercel
+check l1 connect-supabase
+check l1 cto-status-report
+check l1 health-check
+check l1 create-github-pr
+check l1 setup-monitoring
+check l1 send-notification
+
+echo ""
+echo "L2 skills (gstack lineage):"
+check l2 office-hours
+check l2 plan-ceo-review
+check l2 plan-eng-review
+check l2 review
+check l2 cso
+check l2 qa
+check l2 ship
+check l2 canary
+
+echo ""
+echo "Workflows:"
+[ -f "$PROFILE/sonstack/workflows/idea-to-deploy.md" ] && echo "  ✅ idea-to-deploy" || { echo "  ❌ idea-to-deploy MISSING"; ERRORS=$((ERRORS+1)); }
+
+echo ""
+echo "gstack binaries:"
+[ -f "$HOME/.claude/skills/gstack/browse/dist/browse" ] && echo "  ✅ browse (\$B)" || echo "  ⚠️  browse binary missing — run: cd ~/.claude/skills/gstack && bun run build"
+[ -f "$HOME/.claude/skills/gstack/design/dist/design" ] && echo "  ✅ design (\$D)" || echo "  ⚠️  design binary missing — run: cd ~/.claude/skills/gstack && bun run build"
+
+echo ""
+if [ "$ERRORS" -eq 0 ]; then
+  echo "✅ All gates ready. Ship it."
+else
+  echo "❌ $ERRORS skill(s) missing. Run: git clone https://github.com/toilalesondev/sonstack ~/.hermes/profiles/karpathy/skills/sonstack"
+fi
